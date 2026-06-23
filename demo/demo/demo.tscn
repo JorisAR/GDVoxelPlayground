@@ -1,4 +1,4 @@
-[gd_scene load_steps=11 format=3 uid="uid://s8dmi2g1hu2t"]
+[gd_scene format=3 uid="uid://s8dmi2g1hu2t"]
 
 [ext_resource type="VoxelWorldTerrainGenerator" uid="uid://7qp8oont4vut" path="res://demo/assets/settings/terrain_example.tres" id="1_u10mr"]
 [ext_resource type="Script" uid="uid://bx00fnhlbwhlh" path="res://demo/world_editor.gd" id="2_dar0o"]
@@ -28,11 +28,11 @@ adjustment_brightness = 0.95
 adjustment_contrast = 1.05
 adjustment_saturation = 1.1
 
-[node name="World" type="Node3D"]
+[node name="World" type="Node3D" unique_id=2066472286]
 
-[node name="VoxelWorld" type="VoxelWorld" parent="." node_paths=PackedStringArray("voxel_world_collider", "player_node", "sun_light")]
+[node name="VoxelWorld" type="VoxelWorld" parent="." unique_id=21778746 node_paths=PackedStringArray("voxel_world_collider", "player_node", "sun_light")]
 generator = SubResource("VoxelWorldCPUGenerator_u10mr")
-brick_map_size = Vector3i(96, 32, 96)
+brick_map_size = Vector3i(32, 32, 32)
 scale = 0.25
 voxel_world_collider = NodePath("VoxelWorldCollider")
 player_node = NodePath("../Player")
@@ -41,42 +41,43 @@ ground_color = Color(0.6336, 0.88928, 0.96, 1)
 sky_color = Color(0.2881, 0.561795, 0.67, 1)
 transform = Transform3D(0.999641, -0.0174314, -0.0203317, 0.017435, 0.999848, 0, 0.0203286, -0.000354483, 0.999793, 0, 0, 0)
 
-[node name="VoxelWorldCollider" type="VoxelWorldCollider" parent="VoxelWorld" node_paths=PackedStringArray("collision_shape")]
+[node name="VoxelWorldCollider" type="VoxelWorldCollider" parent="VoxelWorld" unique_id=2068916603 node_paths=PackedStringArray("collision_shape")]
 collider_size = Vector3i(24, 32, 24)
 collision_shape = NodePath("StaticBody3D/CollisionShape3D")
 update_interval = 10
 transform = Transform3D(0.999642, 0.017435, 0.0203286, -0.0174314, 0.999848, -0.000354483, -0.0203317, -2.32831e-10, 0.999794, 0, 0, 0)
 
-[node name="StaticBody3D" type="StaticBody3D" parent="VoxelWorld/VoxelWorldCollider"]
+[node name="StaticBody3D" type="StaticBody3D" parent="VoxelWorld/VoxelWorldCollider" unique_id=1228637676]
 transform = Transform3D(1, 1.11711e-08, 2.98023e-08, -5.58793e-09, 1, -1.66533e-16, -1.11759e-08, 2.32783e-10, 1, 0, 0, 0)
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="VoxelWorld/VoxelWorldCollider/StaticBody3D"]
+[node name="CollisionShape3D" type="CollisionShape3D" parent="VoxelWorld/VoxelWorldCollider/StaticBody3D" unique_id=357590880]
 shape = SubResource("ConcavePolygonShape3D_dar0o")
 
-[node name="Sun" type="DirectionalLight3D" parent="VoxelWorld"]
+[node name="Sun" type="DirectionalLight3D" parent="VoxelWorld" unique_id=1540978934]
 transform = Transform3D(0.63628, 0.354164, -0.685359, 0.013708, 0.883062, 0.469055, 0.771337, -0.307845, 0.55702, 0, 0, 0)
 
-[node name="Player" type="CharacterBody3D" parent="." node_paths=PackedStringArray("camera")]
+[node name="Player" type="CharacterBody3D" parent="." unique_id=1306347983 node_paths=PackedStringArray("camera")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 32, 66.6397, 32)
 script = ExtResource("4_j5lb4")
 camera = NodePath("VoxelCamera")
+look_sensitivity = 0.025
 is_flying = true
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="Player"]
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Player" unique_id=2008182596]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
 shape = SubResource("CapsuleShape3D_j5lb4")
 debug_color = Color(0, 0.6, 0.7, 0)
 
-[node name="VoxelCamera" type="VoxelCamera" parent="Player" node_paths=PackedStringArray("voxel_world", "output_texture")]
+[node name="VoxelCamera" type="VoxelCamera" parent="Player" unique_id=1823777299 node_paths=PackedStringArray("voxel_world", "output_texture")]
 voxel_world = NodePath("../../VoxelWorld")
 output_texture = NodePath("TextureRect")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.6, 0)
 
-[node name="WorldEditor" type="Node3D" parent="Player/VoxelCamera" node_paths=PackedStringArray("world")]
+[node name="WorldEditor" type="Node3D" parent="Player/VoxelCamera" unique_id=1201779433 node_paths=PackedStringArray("world")]
 script = ExtResource("2_dar0o")
 world = NodePath("../../../VoxelWorld")
 
-[node name="TextureRect" type="TextureRect" parent="Player/VoxelCamera"]
+[node name="TextureRect" type="TextureRect" parent="Player/VoxelCamera" unique_id=696927214]
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
@@ -84,7 +85,7 @@ grow_horizontal = 2
 grow_vertical = 2
 texture = SubResource("ImageTexture_5hjng")
 
-[node name="GUI" type="Control" parent="Player/VoxelCamera/TextureRect"]
+[node name="GUI" type="Control" parent="Player/VoxelCamera/TextureRect" unique_id=233693583]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -92,7 +93,7 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="Inventory" type="Control" parent="Player/VoxelCamera/TextureRect/GUI" node_paths=PackedStringArray("slots", "world_editor")]
+[node name="Inventory" type="Control" parent="Player/VoxelCamera/TextureRect/GUI" unique_id=479225389 node_paths=PackedStringArray("slots", "world_editor")]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -103,7 +104,7 @@ script = ExtResource("3_j5lb4")
 slots = [NodePath("HBoxContainer/Rock"), NodePath("HBoxContainer/Sand"), NodePath("HBoxContainer/Water"), NodePath("HBoxContainer/Lava")]
 world_editor = NodePath("../../../WorldEditor")
 
-[node name="HBoxContainer" type="HBoxContainer" parent="Player/VoxelCamera/TextureRect/GUI/Inventory"]
+[node name="HBoxContainer" type="HBoxContainer" parent="Player/VoxelCamera/TextureRect/GUI/Inventory" unique_id=1560952195]
 layout_mode = 1
 anchors_preset = 2
 anchor_top = 1.0
@@ -113,12 +114,12 @@ offset_right = 1920.0
 grow_vertical = 0
 alignment = 1
 
-[node name="Rock" type="ColorRect" parent="Player/VoxelCamera/TextureRect/GUI/Inventory/HBoxContainer"]
+[node name="Rock" type="ColorRect" parent="Player/VoxelCamera/TextureRect/GUI/Inventory/HBoxContainer" unique_id=669212067]
 custom_minimum_size = Vector2(100, 100)
 layout_mode = 2
 color = Color(0.19, 0.19, 0.19, 0.835294)
 
-[node name="ColorRect2" type="ColorRect" parent="Player/VoxelCamera/TextureRect/GUI/Inventory/HBoxContainer/Rock"]
+[node name="ColorRect2" type="ColorRect" parent="Player/VoxelCamera/TextureRect/GUI/Inventory/HBoxContainer/Rock" unique_id=1927418007]
 layout_mode = 1
 anchors_preset = -1
 anchor_right = 1.0
@@ -131,12 +132,12 @@ grow_horizontal = 2
 grow_vertical = 2
 color = Color(0.59, 0.59, 0.59, 1)
 
-[node name="Sand" type="ColorRect" parent="Player/VoxelCamera/TextureRect/GUI/Inventory/HBoxContainer"]
+[node name="Sand" type="ColorRect" parent="Player/VoxelCamera/TextureRect/GUI/Inventory/HBoxContainer" unique_id=177248406]
 custom_minimum_size = Vector2(100, 100)
 layout_mode = 2
 color = Color(0.19, 0.19, 0.19, 0.835294)
 
-[node name="ColorRect2" type="ColorRect" parent="Player/VoxelCamera/TextureRect/GUI/Inventory/HBoxContainer/Sand"]
+[node name="ColorRect2" type="ColorRect" parent="Player/VoxelCamera/TextureRect/GUI/Inventory/HBoxContainer/Sand" unique_id=1685745911]
 layout_mode = 1
 anchors_preset = -1
 anchor_right = 1.0
@@ -149,12 +150,12 @@ grow_horizontal = 2
 grow_vertical = 2
 color = Color(0.91, 0.825218, 0.5187, 1)
 
-[node name="Water" type="ColorRect" parent="Player/VoxelCamera/TextureRect/GUI/Inventory/HBoxContainer"]
+[node name="Water" type="ColorRect" parent="Player/VoxelCamera/TextureRect/GUI/Inventory/HBoxContainer" unique_id=703239593]
 custom_minimum_size = Vector2(100, 100)
 layout_mode = 2
 color = Color(0.19, 0.19, 0.19, 0.835294)
 
-[node name="ColorRect2" type="ColorRect" parent="Player/VoxelCamera/TextureRect/GUI/Inventory/HBoxContainer/Water"]
+[node name="ColorRect2" type="ColorRect" parent="Player/VoxelCamera/TextureRect/GUI/Inventory/HBoxContainer/Water" unique_id=1172623157]
 layout_mode = 1
 anchors_preset = -1
 anchor_right = 1.0
@@ -167,12 +168,12 @@ grow_horizontal = 2
 grow_vertical = 2
 color = Color(0.1898, 0.450897, 0.73, 1)
 
-[node name="Lava" type="ColorRect" parent="Player/VoxelCamera/TextureRect/GUI/Inventory/HBoxContainer"]
+[node name="Lava" type="ColorRect" parent="Player/VoxelCamera/TextureRect/GUI/Inventory/HBoxContainer" unique_id=1775908453]
 custom_minimum_size = Vector2(100, 100)
 layout_mode = 2
 color = Color(0.19, 0.19, 0.19, 0.835294)
 
-[node name="ColorRect2" type="ColorRect" parent="Player/VoxelCamera/TextureRect/GUI/Inventory/HBoxContainer/Lava"]
+[node name="ColorRect2" type="ColorRect" parent="Player/VoxelCamera/TextureRect/GUI/Inventory/HBoxContainer/Lava" unique_id=997907862]
 layout_mode = 1
 anchors_preset = -1
 anchor_right = 1.0
@@ -185,7 +186,7 @@ grow_horizontal = 2
 grow_vertical = 2
 color = Color(0.74, 0.37444, 0.1628, 1)
 
-[node name="Target" type="ColorRect" parent="Player/VoxelCamera/TextureRect/GUI"]
+[node name="Target" type="ColorRect" parent="Player/VoxelCamera/TextureRect/GUI" unique_id=1153446539]
 layout_mode = 1
 anchors_preset = 8
 anchor_left = 0.5
@@ -199,12 +200,12 @@ offset_bottom = 2.5
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="DebugLabel" type="Label" parent="Player/VoxelCamera/TextureRect/GUI" node_paths=PackedStringArray("reference_node")]
+[node name="DebugLabel" type="Label" parent="Player/VoxelCamera/TextureRect/GUI" unique_id=1678622044 node_paths=PackedStringArray("reference_node")]
 layout_mode = 0
 offset_right = 40.0
 offset_bottom = 23.0
 script = ExtResource("2_ytiva")
 reference_node = NodePath("../../..")
 
-[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=174246224]
 environment = SubResource("Environment_dar0o")

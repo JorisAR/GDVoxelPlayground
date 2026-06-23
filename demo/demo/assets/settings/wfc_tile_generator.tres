@@ -1,4 +1,4 @@
-[gd_resource type="VoxelWorldWFCTileGenerator" load_steps=15 format=3 uid="uid://vu1oju0jkh8j"]
+[gd_resource type="VoxelWorldWFCTileGenerator" format=3 uid="uid://vu1oju0jkh8j"]
 
 [sub_resource type="VoxelDataVox" id="VoxelDataVox_j5lb4"]
 file_path = "res://demo/assets/voxels/tiles/castle_corner.vox"
@@ -45,6 +45,7 @@ voxel_tile = SubResource("VoxelDataVox_jq734")
 [resource]
 voxel_tiles = Array[WaveFunctionCollapseTile]([SubResource("WaveFunctionCollapseTile_u10mr"), SubResource("WaveFunctionCollapseTile_v2w5s"), SubResource("WaveFunctionCollapseTile_2lkgy"), SubResource("WaveFunctionCollapseTile_jgq2o"), SubResource("WaveFunctionCollapseTile_ywv5a"), SubResource("WaveFunctionCollapseTile_urrl1"), SubResource("WaveFunctionCollapseTile_5iuy0")])
 seed_position_normalized = Vector3(0.5, 0, 0.5)
+show_contradictions = false
 only_replace_air = false
 voxel_scale = 4.0
 target_grid_size = Vector3i(256, 256, 256)

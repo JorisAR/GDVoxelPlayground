@@ -1,4 +1,4 @@
-[gd_resource type="VoxelWorldTerrainGenerator" load_steps=2 format=3 uid="uid://7qp8oont4vut"]
+[gd_resource type="VoxelWorldTerrainGenerator" format=3 uid="uid://7qp8oont4vut"]
 
 [ext_resource type="VoxelWorldWFCTileGenerator" uid="uid://vu1oju0jkh8j" path="res://demo/assets/settings/wfc_tile_generator.tres" id="1_sa1ts"]
 
@@ -6,9 +6,9 @@
 noise_frequency = 0.005
 base_height = 128
 height_variation = 128
-flat_plot_size = Vector3i(256, 256, 256)
-plot_center = Vector3i(384, 0, 384)
-plot_buffer = 96
+flat_plot_size = Vector3i(128, 128, 128)
+plot_center = Vector3i(128, 0, 128)
+plot_buffer = 16
 ground_color = Color(0.5848, 0.657787, 0.68, 1)
 grass_color = Color(0.213606, 0.703123, 0.214448, 1)
 structure_pass = ExtResource("1_sa1ts")
