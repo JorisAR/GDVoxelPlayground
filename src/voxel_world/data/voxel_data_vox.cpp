@@ -1,4 +1,6 @@
 #include "voxel_data_vox.h"
+#include <unordered_map>
+#include <utility>
 
 namespace
 {
@@ -186,7 +188,7 @@ Error VoxelDataVox::load()
         return (((size_t)(size.z - z - 1)) * size.y + (size_t)y) * size.x + (size_t)x;
     };
 
-    std::unordered_map<int, std::pair<int, Color>> palette_counts;
+    std::unordered_map<int, std::pair<int, Color>> palette_counts {};
 
     for (const auto &p : points)
     {

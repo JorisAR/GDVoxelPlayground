@@ -200,9 +200,9 @@ struct VoxelWorldRIDs
 };
 } // namespace godot
 
-template <> struct std::hash<Voxel>
+template <> struct std::hash<godot::Voxel>
 {
-    size_t operator()(const Voxel &v) const noexcept
+    size_t operator()(const godot::Voxel &v) const noexcept
     {
         return std::hash<uint32_t>{}(v.data);
     }
