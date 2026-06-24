@@ -42,7 +42,7 @@ if env['PLATFORM'] == 'windows':
 # Handle different platforms
 if env["platform"] == "macos":
     library = env.SharedLibrary(
-        "project/addons/voxel_playground/bin/voxel_playground.{}.{}.framework/voxel_playground.{}.{}".format(
+        "demo/addons/voxel_playground/bin/voxel_playground.{}.{}.framework/voxel_playground.{}.{}".format(
             env["platform"], env["target"], env["platform"], env["target"]
         ),
         source=sources,
@@ -50,17 +50,17 @@ if env["platform"] == "macos":
 elif env["platform"] == "ios":
     if env["ios_simulator"]:
         library = env.StaticLibrary(
-            "project/addons/voxel_playground/bin/voxel_playground.{}.{}.simulator.a".format(env["platform"], env["target"]),
+            "demo/addons/voxel_playground/bin/voxel_playground.{}.{}.simulator.a".format(env["platform"], env["target"]),
             source=sources,
         )
     else:
         library = env.StaticLibrary(
-            "project/addons/voxel_playground/bin/voxel_playground.{}.{}.a".format(env["platform"], env["target"]),
+            "demo/addons/voxel_playground/bin/voxel_playground.{}.{}.a".format(env["platform"], env["target"]),
             source=sources,
         )
 else:
     library = env.SharedLibrary(
-        "project/addons/voxel_playground/bin/voxel_playground{}{}".format(env["suffix"], env["SHLIBSUFFIX"]),
+        "demo/addons/voxel_playground/bin/voxel_playground{}{}".format(env["suffix"], env["SHLIBSUFFIX"]),
         source=sources,
     )
 
