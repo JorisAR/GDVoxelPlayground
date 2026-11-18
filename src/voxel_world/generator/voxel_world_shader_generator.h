@@ -2,6 +2,7 @@
 #define VOXEL_WORLD_SHADER_GENERATOR_H
 
 #include "voxel_world/generator/voxel_world_generator.h"
+#include "voxel_world/shader_paths.h"
 #include <godot_cpp/classes/node3d.hpp>
 #include <godot_cpp/classes/rendering_device.hpp>
 #include <godot_cpp/core/class_db.hpp>
@@ -13,7 +14,7 @@ class VoxelWorldShaderGenerator : public VoxelWorldGenerator {
     GDCLASS(VoxelWorldShaderGenerator, VoxelWorldGenerator)
 
 protected:
-    String shader_path = "res://addons/voxel_playground/src/shaders/generators/floating_island.glsl";
+    String shader_path = VoxelShaders::FLOATING_ISLAND;
 
 public:
     VoxelWorldShaderGenerator() = default;

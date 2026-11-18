@@ -1,8 +1,8 @@
 #[compute]
 #version 460
 
-#include "../utility.glsl"
-#include "../voxel_world.glsl"
+#include "../utility.glslinc"
+#include "../voxel_world.glslinc"
 
 float distanceToBoundary(vec3 pos, vec3 halfBoxSize) {
     vec3 d = abs(pos - halfBoxSize) - halfBoxSize;

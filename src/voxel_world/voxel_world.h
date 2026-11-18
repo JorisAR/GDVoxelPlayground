@@ -6,6 +6,8 @@
 #include <godot_cpp/variant/vector3i.hpp>
 #include <godot_cpp/classes/rendering_device.hpp>
 #include <godot_cpp/classes/directional_light3d.hpp>
+#include <godot_cpp/core/object.hpp>
+#include <memory>
 
 #include "voxel_world/voxel_properties.h"
 #include "voxel_world/cellular_automata/voxel_world_update_pass.h"
@@ -28,30 +30,37 @@ private:
     Vector3i brick_map_size = Vector3i(16, 16, 16);
     float scale = 0.125f;
     bool simulation_enabled = true;
-    bool _initialized;
+    bool _initialized = false;
 
-    // RID _voxel_data_rid;
-    // RID _voxel_bricks_rid;
-    // RID _voxel_properties_rid;
-    VoxelWorldRIDs _voxel_world_rids;
+    VoxelWorldRIDs _voxel_world_rids; // non-owning view handed to passes
     VoxelWorldProperties _voxel_properties;
-    RenderingDevice* _rd;
-    Node3D* player_node = nullptr;
+    RenderingDevice* _rd = nullptr;
+
+    // GPU buffers owned by the world.
+    GpuResource _properties_buffer;
+    GpuResource _bricks_buffer;
+    GpuResource _voxel_data_buffer;
+    GpuResource _voxel_data2_buffer;
+
+    // Node references are stored as ObjectIDs so a freed node never leaves a dangling pointer.
+    ObjectID _player_node_id;
+    ObjectID _collider_id;
 
     Ref<VoxelWorldGenerator> generator;
-    VoxelWorldUpdatePass* _update_pass = nullptr;
-    VoxelEditPass* _edit_pass = nullptr;
-    VoxelWorldCollider* _voxel_world_collider = nullptr;
+    std::unique_ptr<VoxelWorldUpdatePass> _update_pass;
+    std::unique_ptr<VoxelEditPass> _edit_pass;
 
-    DirectionalLight3D* _sun_light = nullptr;
+    ObjectID _sun_light_id;
     Color ground_color = Color(0.5, 0.3, 0.15, 1.0);
     Color sky_color = Color(1.0, 1.0, 1.0, 1.0);
 
     void init();
+    void release();
     void update(float delta);
 
     Vector3i get_voxel_world_position(const Vector3 &position) const {
-        return Vector3i(std::floor(position.x / scale), std::floor(position.y / scale), std::floor(position.z / scale));
+        return Vector3i(static_cast<int32_t>(std::floor(position.x / scale)), static_cast<int32_t>(std::floor(position.y / scale)),
+                        static_cast<int32_t>(std::floor(position.z / scale)));
     }
 
 public:
@@ -68,24 +77,26 @@ public:
     void set_simulation_enabled(bool enabled) { simulation_enabled = enabled; }
     bool get_simulation_enabled() const { return simulation_enabled; }
 
-    void set_sun_light(DirectionalLight3D* node) { _sun_light = node; }
-    DirectionalLight3D* get_sun_light() const { return _sun_light; }
+    void set_sun_light(DirectionalLight3D* node) { _sun_light_id = node ? ObjectID(node->get_instance_id()) : ObjectID(); }
+    DirectionalLight3D* get_sun_light() const { return Object::cast_to<DirectionalLight3D>(ObjectDB::get_instance(_sun_light_id)); }
 
     void set_ground_color(const Color &color) { ground_color = color; }
     Color get_ground_color() const { return ground_color; }
     void set_sky_color(const Color &color) { sky_color = color; }
     Color get_sky_color() const { return sky_color; }
 
-    void set_player_node(Node3D* node) { player_node = node; }
-    Node3D* get_player_node() const { return player_node; }
+    void set_player_node(Node3D* node) { _player_node_id = node ? ObjectID(node->get_instance_id()) : ObjectID(); }
+    Node3D* get_player_node() const { return Object::cast_to<Node3D>(ObjectDB::get_instance(_player_node_id)); }
 
-    void set_voxel_world_collider(VoxelWorldCollider* collider) {_voxel_world_collider = collider;}
-    VoxelWorldCollider* get_voxel_world_collider() const { return _voxel_world_collider; }
+    void set_voxel_world_collider(VoxelWorldCollider* collider) { _collider_id = collider ? ObjectID(collider->get_instance_id()) : ObjectID(); }
+    VoxelWorldCollider* get_voxel_world_collider() const { return Object::cast_to<VoxelWorldCollider>(ObjectDB::get_instance(_collider_id)); }
+
+    bool is_initialized() const { return _initialized; }
 
     void edit_world(const Vector3 &camera_origin, const Vector3 &camera_direction, const float radius, const float range, const int value);
 
-    VoxelWorldRIDs get_voxel_world_rids() const { return _voxel_world_rids; }
-    VoxelWorldProperties get_voxel_properties() const { return _voxel_properties; }
+    const VoxelWorldRIDs &get_voxel_world_rids() const { return _voxel_world_rids; }
+    const VoxelWorldProperties &get_voxel_properties() const { return _voxel_properties; }
 
     Ref<VoxelWorldGenerator> get_generator() const { return generator;}
     void set_generator(const Ref<VoxelWorldGenerator> p_generator) { generator = p_generator; }    

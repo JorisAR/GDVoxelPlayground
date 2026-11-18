@@ -1,4 +1,4 @@
-name: 🛠️ Builds
+name: Builds
 on:
   push:
   pull_request:
@@ -12,119 +12,73 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - identifier: linux-debug-x86_64
-            name: Linux Debug x86_64
-            runner: ubuntu-22.04
-            target: template_debug
-            platform: linux
-            arch: x86_64
           - identifier: linux-release-x86_64
             name: Linux Release x86_64
             runner: ubuntu-22.04
             target: template_release
             platform: linux
             arch: x86_64
-          - identifier: windows-debug-x86_64
-            name: Windows Debug x86_64
-            runner: ubuntu-22.04
-            target: template_debug
-            platform: windows
-            arch: x86_64
           - identifier: windows-release-x86_64
             name: Windows Release x86_64
-            runner: ubuntu-22.04
+            runner: windows-2022
             target: template_release
             platform: windows
             arch: x86_64
-          - identifier: android-debug-arm64v8
-            name: Android Debug arm64v8
-            runner: ubuntu-22.04
-            target: template_debug
-            platform: android
-            arch: arm64v8
-          - identifier: android-release-arm64v8
-            name: Android Release arm64v8
-            runner: ubuntu-22.04
-            target: template_release
-            platform: android
-            arch: arm64v8
     steps:
-      - name: (Windows) Install mingw64
-        if: ${{ startsWith(matrix.identifier, 'windows-') }}
-        shell: sh
-        run: |
-          sudo apt-get install mingw-w64
-          sudo update-alternatives --set x86_64-w64-mingw32-gcc /usr/bin/x86_64-w64-mingw32-gcc-posix
-          sudo update-alternatives --set x86_64-w64-mingw32-g++ /usr/bin/x86_64-w64-mingw32-g++-posix
-      - name: (Android) Install JDK 17
-        if: ${{ startsWith(matrix.identifier, 'android-') }}
-        uses: actions/setup-java@v3
-        with:
-          java-version: 17
-          distribution: temurin
-      - name: (Android) Install Android SDK
-        if: ${{ startsWith(matrix.identifier, 'android-') }}
-        uses: android-actions/setup-android@v3
-      - name: (Android) Install NDK r23c
-        if: ${{ matrix.platform == 'android' }}
-        uses: nttld/setup-ndk@v1
-        with:
-          ndk-version: r23c
-          link-to-sdk: true
-      - name: Install Python
-        uses: actions/setup-python@v2
-      - name: Install SCons
-        shell: bash
-        run: |
-          python -c "import sys; print(sys.version)"
-          python -m pip install scons
-          scons --version
       - name: Checkout project
         uses: actions/checkout@v4
         with:
           submodules: recursive
-          fetch-depth: 0
-      - name: Set up SCons cache
-        uses: actions/cache@v3
+
+      - name: Install Python
+        uses: actions/setup-python@v5
         with:
-          path: |
-            ${{ github.workspace }}/.scons-cache/
-            ${{ github.workspace }}/**/.sconsign.dblite
-            ${{ github.workspace }}/godot-cpp/gen/
+          python-version: '3.12'
+
+      - name: Install SCons
+        shell: bash
+        run: |
+          python -m pip install scons
+          scons --version
+
+      - name: Set up SCons cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/.scons-cache/
           key: ${{ matrix.identifier }}-${{ github.ref }}-${{ github.sha }}
           restore-keys: |
-            ${{ matrix.identifier }}-${{ github.ref }}-${{ github.sha }}
             ${{ matrix.identifier }}-${{ github.ref }}-
             ${{ matrix.identifier }}-
+
       - name: Compile extension
         shell: bash
         env:
           SCONS_CACHE: '${{ github.workspace }}/.scons-cache/'
           SCONS_CACHE_LIMIT: 4096
         run: |
-          scons target='${{ matrix.target }}' platform='${{ matrix.platform }}' arch='${{ matrix.arch }}' -j2
-          ls -l project/addons/*/bin/
-      # TODO: Replace '--no-clobber' with '--update=none' in ubuntu 24.04
-      # TODO: Workaround artifact folder structure: https://github.com/actions/upload-artifact/issues/174
-      - name: Copy README.md and LICENSE to addon and make a new directory for artifacts
+          scons target='${{ matrix.target }}' platform='${{ matrix.platform }}' arch='${{ matrix.arch }}' -j4
+          ls -l demo/addons/voxel_playground/bin/
+
+      - name: Package addon
         shell: bash
         run: |
-          for addon in ${{ github.workspace }}/project/addons/*/; do
-            cp --no-clobber '${{ github.workspace }}/README.md' '${{ github.workspace }}/LICENSE' "$addon"
-          done
-          mkdir --parents ${{ github.workspace }}/github-artifact/${{ github.event.repository.name }}-${{ github.sha }}/
-          mv ${{ github.workspace }}/project/addons/ ${{ github.workspace }}/github-artifact/${{ github.event.repository.name }}-${{ github.sha }}/
+          addon=demo/addons/voxel_playground
+          # Strip MSVC link by-products; only the shared library is needed at runtime.
+          rm -f $addon/bin/*.exp $addon/bin/*.lib $addon/bin/*.pdb $addon/bin/~*
+          cp README.md LICENSE $addon/
+          mkdir -p github-artifact/addons
+          cp -r $addon github-artifact/addons/
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.identifier }}
-          path: |
-            ${{ github.workspace }}/github-artifact
+          path: github-artifact
+
   merge:
     runs-on: ubuntu-22.04
     needs: build
     steps:
-      # TODO: Simplify generating artifact names. See: https://github.com/orgs/community/discussions/26686
       - name: Merge artifacts
         uses: actions/upload-artifact/merge@v4
         with:

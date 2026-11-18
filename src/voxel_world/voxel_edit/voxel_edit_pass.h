@@ -1,20 +1,15 @@
-
 #ifndef VOXEL_WORLD_EDIT_PASS_H
 #define VOXEL_WORLD_EDIT_PASS_H
 
-#include <godot_cpp/classes/node3d.hpp>
 #include <godot_cpp/classes/rendering_device.hpp>
-#include <godot_cpp/core/class_db.hpp>
-#include <godot_cpp/variant/rid.hpp>
 
-#include "gdcs/include/gdcs.h"
 #include "voxel_world/voxel_properties.h"
 
 using namespace godot;
 
 class VoxelEditPass
 {
-    struct VoxelEditParams
+    struct VoxelEditParams // matches Params in raycast.glsl / sphere_edit.glsl
     {
         Vector4 camera_origin;
         Vector4 camera_direction;
@@ -23,31 +18,22 @@ class VoxelEditPass
         float far;
         float radius;
         unsigned int value;
-
-        PackedByteArray to_packed_byte_array()
-        {
-            PackedByteArray byte_array;
-            byte_array.resize(sizeof(VoxelEditParams));
-            std::memcpy(byte_array.ptrw(), this, sizeof(VoxelEditParams));
-            return byte_array;
-        }
     };
 
   public:
-    VoxelEditPass(String edit_shader_path, RenderingDevice *rd, VoxelWorldRIDs &voxel_world_rids, const Vector3i size);
-    ~VoxelEditPass() {};
+    VoxelEditPass(const String &edit_shader_path, RenderingDevice *rd, const VoxelWorldRIDs &voxel_world_rids,
+                  const Vector3i size);
 
     void edit_using_raycast(const Vector3 &camera_origin, const Vector3 &camera_direction, const float radius,
                             const float range, const int value);
-    void edit_at(const Vector3 &position, const float radius, const int value);
 
   private:
-    ComputeShader *ray_cast_shader = nullptr;
-    ComputeShader *edit_shader = nullptr;
+    ComputeKernel _ray_cast;
+    ComputeKernel _edit;
     Vector3i _size;
 
     VoxelEditParams _edit_params;
-    RID _edit_params_rid;
+    GpuResource _edit_params_buffer;
 };
 
 #endif // VOXEL_WORLD_EDIT_PASS_H

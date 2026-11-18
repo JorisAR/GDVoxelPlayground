@@ -1,8 +1,14 @@
 #ifndef VOXEL_WORLD_PROPERTIES_H
 #define VOXEL_WORLD_PROPERTIES_H
 
-#include "gdcs/include/gdcs.h"
+#include "compute/compute_kernel.h"
 #include "utils.h"
+#include <cstring>
+#include <unordered_map>
+#include <vector>
+#include <godot_cpp/classes/rendering_server.hpp>
+#include <godot_cpp/variant/typed_array.hpp>
+#include <godot_cpp/variant/utility_functions.hpp>
 #include <functional>
 #include <godot_cpp/variant/packed_byte_array.hpp>
 #include <godot_cpp/variant/vector4.hpp>
@@ -183,6 +189,7 @@ struct VoxelWorldProperties // match the struct on the gpu
     }
 };
 
+// Non-owning view of the world's GPU buffers. The buffers themselves are owned by VoxelWorld.
 struct VoxelWorldRIDs
 {
     RID properties;
@@ -190,12 +197,18 @@ struct VoxelWorldRIDs
     RID voxel_data;
     RID voxel_data2;
 
-    size_t brick_count;
-    size_t voxel_count;
+    size_t brick_count = 0;
+    size_t voxel_count = 0;
 
     RenderingDevice *rendering_device = nullptr;
 
-    void add_voxel_buffers(ComputeShader *shader);
+    bool is_valid() const
+    {
+        return properties.is_valid() && voxel_bricks.is_valid() && voxel_data.is_valid() && voxel_data2.is_valid();
+    }
+
+    // Binds the world buffers to set 0, bindings 0..3 (see voxel_world.glslinc).
+    void add_voxel_buffers(ComputeKernel &kernel) const;
     void set_voxel_data(const std::vector<Voxel> &voxel_data);
 };
 } // namespace godot

@@ -1,4 +1,5 @@
 #include "voxel_world_collider.h"
+#include "voxel_world/shader_paths.h"
 
 void VoxelWorldCollider::_bind_methods()
 {
@@ -20,46 +21,58 @@ void VoxelWorldCollider::_bind_methods()
                  "set_update_interval", "get_update_interval");
 }
 
-void VoxelWorldCollider::init(RenderingDevice *rd, VoxelWorldRIDs& voxel_world_rids, float scale)
+bool VoxelWorldCollider::init(RenderingDevice *rd, const VoxelWorldRIDs &voxel_world_rids, float scale)
 {
+    release();
+    _rd = rd;
     this->scale = scale;
     if (_collision_shape == nullptr)
     {
-        UtilityFunctions::printerr("Collider shape is null, cannot initialize VoxelWorldCollider");
-        return;
+        UtilityFunctions::printerr("VoxelWorldCollider: collision_shape is not set, collider disabled.");
+        return false;
+    }
+    if (_collider_size.x <= 0 || _collider_size.y <= 0 || _collider_size.z <= 0)
+    {
+        UtilityFunctions::printerr("VoxelWorldCollider: collider_size must be positive, collider disabled.");
+        return false;
     }
 
     // init collision
     _collision_polygon.instantiate();
     _collision_shape->set_shape(_collision_polygon);
 
-    // init shader
     _collider_params = {
         Vector4i(0, 0, 0, 1),                                              // min corner
         Vector4i(_collider_size.x, _collider_size.y, _collider_size.z, 0), // size
     };
 
-    // Number of voxels
+    // 1 bit per voxel, stored as 32-bit words.
     const int64_t nvox = int64_t(_collider_size.x) * _collider_size.y * _collider_size.z;
+    const int64_t byte_size = ((nvox + 31) / 32) * int64_t(sizeof(uint32_t));
 
-    // Storage as 32-bit words (1 bit per voxel)
-    const int64_t uint_count = (nvox + 31) / 32;            // ceil(nvox / 32)
-    const int64_t byte_size  = uint_count * sizeof(uint32_t);
+    auto kernel = std::make_unique<ComputeKernel>(rd, VoxelShaders::FETCH_SOLID_MASK);
+    if (!kernel->is_valid())
+        return false;
 
-    PackedByteArray collider_voxel_data;
-    collider_voxel_data.resize((int)byte_size);
-    collider_voxel_data.fill(0);
+    _collider_params_buffer = GpuResource::storage_buffer_from(rd, _collider_params);
+    _collider_voxel_data_buffer = GpuResource::storage_buffer(rd, static_cast<uint32_t>(byte_size));
 
-    _fetch_data_shader =
-        new ComputeShader("res://addons/voxel_playground/src/shaders/voxel_edit/fetch_solid_mask.glsl", rd);
-        voxel_world_rids.add_voxel_buffers(_fetch_data_shader);
-    _collider_params_rid =
-        _fetch_data_shader->create_storage_buffer_uniform(_collider_params.to_packed_byte_array(), 0, 1);
-    _collider_voxel_data_rid = _fetch_data_shader->create_storage_buffer_uniform(collider_voxel_data, 1, 1);
-    _fetch_data_shader->finish_create_uniforms();
+    voxel_world_rids.add_voxel_buffers(*kernel);
+    kernel->bind_storage_buffer(1, 0, _collider_params_buffer.rid());
+    kernel->bind_storage_buffer(1, 1, _collider_voxel_data_buffer.rid());
+    _fetch_data_shader = std::move(kernel);
 
     _is_updating = false;
     frames_since_last_update = 0;
+    return true;
+}
+
+void VoxelWorldCollider::release()
+{
+    _fetch_data_shader.reset();
+    _collider_params_buffer.reset();
+    _collider_voxel_data_buffer.reset();
+    _is_updating = false;
 }
 
 void VoxelWorldCollider::addQuad(const Vector3 &p1, const int dir, const bool flip)
@@ -100,6 +113,10 @@ void VoxelWorldCollider::addQuad(const Vector3 &p1, const int dir, const bool fl
 
 void VoxelWorldCollider::onDataFetched(const PackedByteArray &data)
 {
+    _is_updating = false;
+    if (!_fetch_data_shader || _collision_polygon.is_null())
+        return; // released while the readback was in flight
+
     if (data.size() % sizeof(unsigned int) != 0)
     {
         UtilityFunctions::printerr("Data size is not a multiple of 4 bytes.");
@@ -143,11 +160,8 @@ void VoxelWorldCollider::onDataFetched(const PackedByteArray &data)
 
 void VoxelWorldCollider::update(Vector3i position)
 {
-    if (_fetch_data_shader == nullptr || !_fetch_data_shader->check_ready())
-    {
-        UtilityFunctions::printerr("Collider fetch voxel data shader is null or not ready");
+    if (!_fetch_data_shader || !_fetch_data_shader->is_valid())
         return;
-    }
 
     frames_since_last_update--;
     if (_is_updating || frames_since_last_update > 0)
@@ -159,21 +173,10 @@ void VoxelWorldCollider::update(Vector3i position)
     collider_offset = Vector3(position.x, position.y, position.z) * scale;
     _collider_params.bounds_min = Vector4i(position.x, position.y, position.z, 0);
 
-    _fetch_data_shader->update_storage_buffer_uniform(_collider_params_rid, _collider_params.to_packed_byte_array());
+    _collider_params_buffer.update(_collider_params);
+    _fetch_data_shader->dispatch(ComputeKernel::group_count(_collider_size, Vector3i(8, 8, 8)));
 
-    static constexpr int GX = 8, GY = 8, GZ = 8;
-
-    auto ceil_div = [](int a, int b) { return (a + b - 1) / b; };
-
-    const Vector3i group_count(
-        std::max(1, ceil_div(_collider_size.x, GX)),
-        std::max(1, ceil_div(_collider_size.y, GY)),
-        std::max(1, ceil_div(_collider_size.z, GZ))
-    );
-
-    _fetch_data_shader->compute(group_count, false);
-
-    _fetch_data_shader->get_storage_buffer_uniform_async(_collider_voxel_data_rid, Callable(this, "_on_data_fetched"));
+    _rd->buffer_get_data_async(_collider_voxel_data_buffer.rid(), Callable(this, "_on_data_fetched"));
 }
 
 bool VoxelWorldCollider::is_voxel_air(Vector3i pos)

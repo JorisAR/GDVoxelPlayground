@@ -6,16 +6,17 @@ reloadable = true
 
 [libraries]
 
+; Release is the default build (plain `scons`), and is used by both the editor and exported games.
+; To debug the extension, build with target=template_debug and point these entries at that library.
+windows.x86_64 = "res://addons/voxel_playground/bin/voxel_playground.windows.template_release.x86_64.dll"
+linux.x86_64 = "res://addons/voxel_playground/bin/libvoxel_playground.linux.template_release.x86_64.so"
+
 macos.debug = "res://addons/voxel_playground/bin/voxel_playground.macos.template_debug.framework"
 macos.release = "res://addons/voxel_playground/bin/voxel_playground.macos.template_release.framework"
 ios.debug = "res://addons/voxel_playground/bin/voxel_playground.ios.template_debug.xcframework"
 ios.release = "res://addons/voxel_playground/bin/voxel_playground.ios.template_release.xcframework"
 windows.debug.x86_32 = "res://addons/voxel_playground/bin/voxel_playground.windows.template_debug.x86_32.dll"
 windows.release.x86_32 = "res://addons/voxel_playground/bin/voxel_playground.windows.template_release.x86_32.dll"
-windows.debug.x86_64 = "res://addons/voxel_playground/bin/voxel_playground.windows.template_debug.x86_64.dll"
-windows.release.x86_64 = "res://addons/voxel_playground/bin/voxel_playground.windows.template_release.x86_64.dll"
-linux.debug.x86_64 = "res://addons/voxel_playground/bin/libvoxel_playground.linux.template_debug.x86_64.so"
-linux.release.x86_64 = "res://addons/voxel_playground/bin/libvoxel_playground.linux.template_release.x86_64.so"
 linux.debug.arm64 = "res://addons/voxel_playground/bin/libvoxel_playground.linux.template_debug.arm64.so"
 linux.release.arm64 = "res://addons/voxel_playground/bin/libvoxel_playground.linux.template_release.arm64.so"
 linux.debug.rv64 = "res://addons/voxel_playground/bin/libvoxel_playground.linux.template_debug.rv64.so"

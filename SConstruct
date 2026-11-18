@@ -1,66 +1,56 @@
 #!/usr/bin/env python
 import os
-import sys
-# from scons_compiledb import compile_db # Import the compile_db function # Call the compile_db function to enable compile_commands.json generation 
-# compile_db()
 
-
-# Import the SConstruct from godot-cpp
+# Default to an optimised release build; pass target=template_debug (or editor) to override.
+env = Environment(tools=["default"], PLATFORM="", target=ARGUMENTS.get("target", "template_release"))
+Export("env")
 env = SConscript("godot-cpp/SConstruct")
 
-# Add necessary include directories
+ADDON_DIR = "demo/addons/voxel_playground"
+
 env.Append(CPPPATH=[
-    "src/gdcs/include/",
-    "src/utility/",
     "src/",
+    "src/utility/",
+    "src/compute/",
     "src/voxel_rendering/",
     "src/voxel_world/",
     "src/voxel_world/generator/",
     "src/voxel_world/generator/cpu_passes/",
     "src/voxel_world/generator/cpu_passes/wave_function_collapse/",
-    "src/voxel_world/cellular_automata/"
-    "src/voxel_world/voxel_edit/"
-    "src/voxel_world/colliders/"
-    "src/voxel_world/data/"
+    "src/voxel_world/cellular_automata/",
+    "src/voxel_world/voxel_edit/",
+    "src/voxel_world/colliders/",
+    "src/voxel_world/data/",
 ])
 
-# # Add main source files
-sources = Glob("src/*.cpp") + Glob("src/utility/*.cpp") + Glob("src/gdcs/src/*.cpp") + \
-      Glob("src/voxel_rendering/*.cpp") + Glob("src/voxel_world/*.cpp") + \
-      Glob("src/voxel_world/generator/*.cpp") + Glob("src/voxel_world/generator/cpu_passes/*.cpp") + Glob("src/voxel_world/generator/cpu_passes/wave_function_collapse/*.cpp") +\
-      Glob("src/voxel_world/cellular_automata/*.cpp") + Glob("src/voxel_world/voxel_edit/*.cpp") + \
-      Glob("src/voxel_world/colliders/*.cpp") + Glob("src/voxel_world/data/*.cpp")
 
-#compiler flags
-if env['PLATFORM'] == 'windows':
-    if env['CXX'] == 'x86_64-w64-mingw32-g++':
-        env.Append(CXXFLAGS=['-std=c++11'])  # Example flags for MinGW
-    elif env['CXX'] == 'cl':
-        env.Append(CXXFLAGS=['/EHsc'])  # Apply /EHsc for MSVC
+def collect_sources(root):
+    result = []
+    for dirpath, _, filenames in os.walk(root):
+        for name in filenames:
+            if name.endswith(".cpp"):
+                result.append(File(os.path.join(dirpath, name)))
+    return result
 
 
-# Handle different platforms
+sources = collect_sources("src")
+
 if env["platform"] == "macos":
     library = env.SharedLibrary(
-        "project/addons/voxel_playground/bin/voxel_playground.{}.{}.framework/voxel_playground.{}.{}".format(
-            env["platform"], env["target"], env["platform"], env["target"]
+        "{}/bin/voxel_playground.{}.{}.framework/voxel_playground.{}.{}".format(
+            ADDON_DIR, env["platform"], env["target"], env["platform"], env["target"]
         ),
         source=sources,
     )
 elif env["platform"] == "ios":
-    if env["ios_simulator"]:
-        library = env.StaticLibrary(
-            "project/addons/voxel_playground/bin/voxel_playground.{}.{}.simulator.a".format(env["platform"], env["target"]),
-            source=sources,
-        )
-    else:
-        library = env.StaticLibrary(
-            "project/addons/voxel_playground/bin/voxel_playground.{}.{}.a".format(env["platform"], env["target"]),
-            source=sources,
-        )
+    suffix = ".simulator.a" if env["ios_simulator"] else ".a"
+    library = env.StaticLibrary(
+        "{}/bin/voxel_playground.{}.{}{}".format(ADDON_DIR, env["platform"], env["target"], suffix),
+        source=sources,
+    )
 else:
     library = env.SharedLibrary(
-        "project/addons/voxel_playground/bin/voxel_playground{}{}".format(env["suffix"], env["SHLIBSUFFIX"]),
+        "{}/bin/voxel_playground{}{}".format(ADDON_DIR, env["suffix"], env["SHLIBSUFFIX"]),
         source=sources,
     )
 
