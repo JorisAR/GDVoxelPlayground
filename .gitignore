@@ -1,73 +1,50 @@
-# Godot 4.2+ specific ignores
-~*.dll
-
-# Godot 4+ specific ignores
+# Godot
 .godot/
-.nomedia
-
-# Godot-specific ignores
 .import/
+.nomedia
 export.cfg
 export_credentials.cfg
-*.tmp
-
-# Imported translations (automatically generated from CSV files)
 *.translation
+*.tmp
+demo/export/
+demo/android/
 
-# Mono-specific ignores
-.mono/
-data_*/
-mono_crash.*.json
-
-# Ignore build and output directories
+# Build output (the addon binaries are produced by SCons / CI)
+demo/addons/*/bin/
 bin/
 build/
+~*.dll
 
-# Ignore user-specific files
-*.sconsign.dblite
-*.sconsign
-/.sconsign.dblite
+# SCons
+.scons-cache/
+.sconsign*.dblite
+compile_commands.json
 
-# Ignore Rider project files
-.idea/
-.idea_modules/
-.idea*/workspace.xml
-.idea*/tasks.xml
-.idea*/dictionaries
+# Compiler objects
+*.o
+*.os
+*.obj
+*.pdb
+*.ilk
+*.exp
+*.lib
+*.a
 
-# Ignore Visual Studio files
-.vscode/
-*.code-workspace
+# IDEs
 .vs/
-*.csproj.user
-*.vcxproj.user
+.vscode/
+.idea/
+*.code-workspace
+*.sln
+*.vcxproj*
 *.suo
 *.user
-*.userosscache
-*.sln.docstates
-*_i.c
-*_p.c
-*_d.c
-*_r.c
-*.opensdf
-*.sdf
-*.vcxproj.*
-ipch/
-obj/
-.vscode/*
-.vscode/*.js
-.vscode/*.ts
-.vscode/*.log
 
-# Ignore Python related files
+# Python
 __pycache__/
 *.py[cod]
 
-# Ignore system files
+# OS
 .DS_Store
 Thumbs.db
 desktop.ini
-vc140.pdb
-src/**/*.obj
-project/export/
-demo/export/

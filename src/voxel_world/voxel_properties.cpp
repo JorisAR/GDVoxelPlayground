@@ -5,12 +5,12 @@ using namespace godot;
 const Color Voxel::DEFAULT_WATER_COLOR = Color(0.1, 0.3, 0.8);
 const Color Voxel::DEFAULT_LAVA_COLOR  = Color(4.0, 0.6, 0.1);
 
-void VoxelWorldRIDs::add_voxel_buffers(ComputeShader *shader)
+void VoxelWorldRIDs::add_voxel_buffers(ComputeKernel &kernel) const
 {
-    shader->add_existing_buffer(properties, RenderingDevice::UNIFORM_TYPE_STORAGE_BUFFER, 0, 0);
-    shader->add_existing_buffer(voxel_bricks, RenderingDevice::UNIFORM_TYPE_STORAGE_BUFFER, 1, 0);
-    shader->add_existing_buffer(voxel_data, RenderingDevice::UNIFORM_TYPE_STORAGE_BUFFER, 2, 0);
-    shader->add_existing_buffer(voxel_data2, RenderingDevice::UNIFORM_TYPE_STORAGE_BUFFER, 3, 0);
+    kernel.bind_storage_buffer(0, 0, properties);
+    kernel.bind_storage_buffer(0, 1, voxel_bricks);
+    kernel.bind_storage_buffer(0, 2, voxel_data);
+    kernel.bind_storage_buffer(0, 3, voxel_data2);
 }
 
 void VoxelWorldRIDs::set_voxel_data(const std::vector<Voxel> &voxel_data)

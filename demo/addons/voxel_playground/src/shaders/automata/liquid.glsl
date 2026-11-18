@@ -1,8 +1,8 @@
 #[compute]
 #version 460
 
-#include "../utility.glsl"
-#include "../voxel_world.glsl"
+#include "../utility.glslinc"
+#include "../voxel_world.glslinc"
 
 
 ivec3 directions[4] = ivec3[](

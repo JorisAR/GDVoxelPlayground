@@ -1,6 +1,8 @@
 
 #include "voxel_world.h"
 #include "voxel_world_generator.h"
+#include "voxel_world/shader_paths.h"
+#include <limits>
 #include <godot_cpp/classes/engine.hpp>
 #include <godot_cpp/classes/rendering_server.hpp>
 #include <godot_cpp/variant/utility_functions.hpp>
@@ -9,20 +11,17 @@ using namespace godot;
 
 VoxelWorld::VoxelWorld()
 {
-    brick_map_size = Vector3i(16, 16, 16);
-    scale = 0.125f;
-    _initialized = false;
 }
 
 VoxelWorld::~VoxelWorld()
 {
-
+    release();
 }
 
 void VoxelWorld::edit_world(const Vector3 &camera_origin, const Vector3 &camera_direction, const float radius,
                             const float range, const int value)
 {
-    if (_edit_pass == nullptr)
+    if (!_initialized || !_edit_pass)
         return;
     _edit_pass->edit_using_raycast(camera_origin, camera_direction, radius, range, value);
 }
@@ -96,6 +95,10 @@ void VoxelWorld::_notification(int p_what)
         init();
         break;
     }
+    case NOTIFICATION_PREDELETE: {
+        release();
+        break;
+    }
     case NOTIFICATION_INTERNAL_PHYSICS_PROCESS: {
         float delta = get_physics_process_delta_time();
         update(delta);
@@ -106,80 +109,107 @@ void VoxelWorld::_notification(int p_what)
 
 void VoxelWorld::init()
 {
-    Vector3i size = brick_map_size * BRICK_SIZE;
+    release();
+
+    _rd = RenderingServer::get_singleton()->get_rendering_device();
+    if (_rd == nullptr)
+    {
+        UtilityFunctions::printerr("VoxelWorld: requires a RenderingDevice-based renderer (Forward+ or Mobile).");
+        return;
+    }
+    if (generator.is_null())
+    {
+        UtilityFunctions::printerr("VoxelWorld: No world generator set.");
+        return;
+    }
+    if (brick_map_size.x <= 0 || brick_map_size.y <= 0 || brick_map_size.z <= 0)
+    {
+        UtilityFunctions::printerr("VoxelWorld: brick_map_size must be positive on every axis.");
+        return;
+    }
+
+    const Vector3i size = brick_map_size * BRICK_SIZE;
+    const uint64_t brick_count = uint64_t(brick_map_size.x) * brick_map_size.y * brick_map_size.z;
+    const uint64_t voxel_count = uint64_t(size.x) * size.y * size.z;
+    const uint64_t voxel_bytes = voxel_count * sizeof(Voxel);
+
+    // Storage buffers are addressed with 32-bit sizes, and shaders index voxels with uints.
+    const uint64_t max_buffer_bytes = std::numeric_limits<uint32_t>::max();
+    if (voxel_bytes > max_buffer_bytes)
+    {
+        UtilityFunctions::printerr("VoxelWorld: The voxel world is too large (", voxel_count,
+                                   " voxels, max 4GB per buffer). Reduce brick_map_size.");
+        return;
+    }
 
     _voxel_properties = VoxelWorldProperties(size, brick_map_size, scale);
     _voxel_properties.set_sky_colors(sky_color, ground_color);
-    if (_sun_light != nullptr)
-        _voxel_properties.set_sun(_sun_light->get_color(), -_sun_light->get_global_transform().basis.rows[2]);
+    if (DirectionalLight3D *sun = get_sun_light())
+        _voxel_properties.set_sun(sun->get_color(), sun->get_global_transform().basis.get_column(2));
     _voxel_properties.frame = 0;
-    _rd = RenderingServer::get_singleton()->get_rendering_device();
-    _voxel_world_rids.rendering_device = _rd;
 
-    // create grid buffer
-    PackedByteArray voxel_bricks;
-    int brick_count = brick_map_size.x * brick_map_size.y * brick_map_size.z;
-    voxel_bricks.resize(brick_count * sizeof(Brick));
-    _voxel_world_rids.voxel_bricks = _rd->storage_buffer_create(voxel_bricks.size(), voxel_bricks);
-    _voxel_world_rids.brick_count = brick_count;
+    // Buffers are created zero-filled on the GPU; no multi-GB CPU staging arrays.
+    _properties_buffer = GpuResource::storage_buffer(_rd, _voxel_properties.to_packed_byte_array());
+    _bricks_buffer = GpuResource::storage_buffer(_rd, static_cast<uint32_t>(brick_count * sizeof(Brick)));
+    _voxel_data_buffer = GpuResource::storage_buffer(_rd, static_cast<uint32_t>(voxel_bytes));
+    // Second buffer for ping-ponging in the cellular automata.
+    _voxel_data2_buffer = GpuResource::storage_buffer(_rd, static_cast<uint32_t>(voxel_bytes));
 
-    // Create the voxel data buffer.
-    PackedByteArray voxel_data;
-    int voxel_count = size.x * size.y * size.z;
-    if (voxel_count * sizeof(Voxel) > 4.0e9f)
+    if (!_properties_buffer.is_valid() || !_bricks_buffer.is_valid() || !_voxel_data_buffer.is_valid() ||
+        !_voxel_data2_buffer.is_valid())
     {
-        UtilityFunctions::printerr(
-            "VoxelWorld: The voxel world is too large (exceeds 4GB, or 2 billion voxels). Reduce the brick map size.");
+        UtilityFunctions::printerr("VoxelWorld: failed to allocate GPU buffers (out of video memory?).");
+        release();
         return;
     }
-    voxel_data.resize(voxel_count * sizeof(Voxel));
-    _voxel_world_rids.voxel_data = _rd->storage_buffer_create(voxel_data.size(), voxel_data);
-    _voxel_world_rids.voxel_data2 = _rd->storage_buffer_create(voxel_data.size(), voxel_data); //create a second to facilitate ping-pong buffers
+
+    _voxel_world_rids.rendering_device = _rd;
+    _voxel_world_rids.properties = _properties_buffer.rid();
+    _voxel_world_rids.voxel_bricks = _bricks_buffer.rid();
+    _voxel_world_rids.voxel_data = _voxel_data_buffer.rid();
+    _voxel_world_rids.voxel_data2 = _voxel_data2_buffer.rid();
+    _voxel_world_rids.brick_count = brick_count;
     _voxel_world_rids.voxel_count = voxel_count;
 
-    // Create the voxel properties buffer.
-    PackedByteArray properties_data = _voxel_properties.to_packed_byte_array();
-    _voxel_world_rids.properties = _rd->storage_buffer_create(properties_data.size(), properties_data);
-
-    if (generator.is_null())
-    {
-        UtilityFunctions::printerr(
-            "VoxelWorld: No world generator set.");
-        return;
-    }
     generator->initialize_brick_grid(_rd, _voxel_world_rids, _voxel_properties);
     generator->generate(_rd, _voxel_world_rids, _voxel_properties);
 
-    // Create the update pass.
-    _update_pass = new VoxelWorldUpdatePass("res://addons/voxel_playground/src/shaders/automata/liquid.glsl", _rd, _voxel_world_rids, size);
+    _update_pass = std::make_unique<VoxelWorldUpdatePass>(VoxelShaders::AUTOMATA_LIQUID, _rd, _voxel_world_rids, size);
+    _edit_pass = std::make_unique<VoxelEditPass>(VoxelShaders::EDIT_SPHERE, _rd, _voxel_world_rids, size);
 
-    // Create the edit pass.
-    _edit_pass = new VoxelEditPass("res://addons/voxel_playground/src/shaders/voxel_edit/sphere_edit.glsl", _rd, _voxel_world_rids, size);
+    if (VoxelWorldCollider *collider = get_voxel_world_collider())
+        collider->init(_rd, _voxel_world_rids, scale);
 
-    // if collider set, initialize it
-    if (_voxel_world_collider != nullptr)
-    {
-        _voxel_world_collider->init(_rd, _voxel_world_rids, scale);
-    }
-    
     _initialized = true;
+}
+
+void VoxelWorld::release()
+{
+    _initialized = false;
+    if (VoxelWorldCollider *collider = get_voxel_world_collider())
+        collider->release();
+    // Passes hold uniform sets that reference the world buffers, so destroy them first.
+    _update_pass.reset();
+    _edit_pass.reset();
+    _properties_buffer.reset();
+    _bricks_buffer.reset();
+    _voxel_data_buffer.reset();
+    _voxel_data2_buffer.reset();
+    _voxel_world_rids = VoxelWorldRIDs();
 }
 
 void VoxelWorld::update(float delta)
 {
-    if(!_initialized) 
+    if (!_initialized)
         return;
     _voxel_properties.frame++;
-    PackedByteArray properties_data = _voxel_properties.to_packed_byte_array();
-    _rd->buffer_update(_voxel_world_rids.properties, 0, properties_data.size(), properties_data);
+    _properties_buffer.update_bytes(_voxel_properties.to_packed_byte_array());
 
     if (simulation_enabled)
-    {
         _update_pass->update(delta);
-    }
 
-    if (_voxel_world_collider != nullptr && player_node != nullptr)
-    {
-        _voxel_world_collider->update(get_voxel_world_position(player_node->get_global_position()));
-    }
+    VoxelWorldCollider *collider = get_voxel_world_collider();
+    Node3D *player = get_player_node();
+    if (collider != nullptr && player != nullptr && collider->is_initialized())
+        collider->update(get_voxel_world_position(player->get_global_position()));
 }

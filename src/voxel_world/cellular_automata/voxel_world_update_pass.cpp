@@ -1,46 +1,26 @@
-
-
 #include "voxel_world_update_pass.h"
-#include <godot_cpp/core/print_string.hpp>  // For print_line()
+#include "voxel_world/shader_paths.h"
 
 using namespace godot;
 
-
-VoxelWorldUpdatePass::VoxelWorldUpdatePass(String shader_path, RenderingDevice * rd, VoxelWorldRIDs& voxel_world_rids, const Vector3i size) : _size(size){
-    automata_cs_1 = new ComputeShader(shader_path, rd);
-    voxel_world_rids.add_voxel_buffers(automata_cs_1);
-    automata_cs_1->finish_create_uniforms();
-
-    automata_cs_2 = new ComputeShader("res://addons/voxel_playground/src/shaders/automata/freeze_lava.glsl", rd);
-    voxel_world_rids.add_voxel_buffers(automata_cs_2);
-    automata_cs_2->finish_create_uniforms();
-
-    cleanup_shader = new ComputeShader("res://addons/voxel_playground/src/shaders/automata/cleanup_pass.glsl", rd);
-    voxel_world_rids.add_voxel_buffers(cleanup_shader);
-    cleanup_shader->finish_create_uniforms();
+VoxelWorldUpdatePass::VoxelWorldUpdatePass(const String &liquid_shader_path, RenderingDevice *rd,
+                                           const VoxelWorldRIDs &voxel_world_rids, const Vector3i size)
+    : _liquid(rd, liquid_shader_path), _freeze_lava(rd, VoxelShaders::AUTOMATA_FREEZE_LAVA),
+      _cleanup(rd, VoxelShaders::AUTOMATA_CLEANUP), _size(size)
+{
+    voxel_world_rids.add_voxel_buffers(_liquid);
+    voxel_world_rids.add_voxel_buffers(_freeze_lava);
+    voxel_world_rids.add_voxel_buffers(_cleanup);
 }
 
-void VoxelWorldUpdatePass::update(float delta)
+void VoxelWorldUpdatePass::update(float /*delta*/)
 {
-    if (automata_cs_1 == nullptr || cleanup_shader == nullptr)
-    {
-        UtilityFunctions::printerr("VoxelWorldUpdatePass::update() compute shader is null");
-        return;
-    }
+    // Automata passes: one thread per voxel, 8x8x8 work groups.
+    const Vector3i automata_groups = ComputeKernel::group_count(_size, Vector3i(8, 8, 8));
+    _liquid.dispatch(automata_groups);
+    _freeze_lava.dispatch(automata_groups);
 
-    { // Automata pass
-        const Vector3 group_size = Vector3(8, 8, 8);
-        const Vector3i group_count = Vector3i(std::ceil(_size.x / group_size.x), std::ceil(_size.y / group_size.y), std::ceil(_size.z / group_size.z));
-        automata_cs_1->compute(group_count, false);
-        automata_cs_2->compute(group_count, false);
-    }
-
-    {
-        const Vector3 thread_span = Vector3(2, 4, 2);
-        const Vector3 group_size = Vector3(4, 2, 4);
-        const Vector3 brick_span = thread_span * group_size;
-        const Vector3i group_count = Vector3i(std::ceil(_size.x / brick_span.x), std::ceil(_size.y / brick_span.y), std::ceil(_size.z / brick_span.z));
-        cleanup_shader->compute(group_count, false);
-    }
-
+    // Cleanup pass: each thread covers 2x4x2 voxels, work groups are 4x2x4 threads.
+    const Vector3i cleanup_span(2 * 4, 4 * 2, 2 * 4);
+    _cleanup.dispatch(ComputeKernel::group_count(_size, cleanup_span));
 }

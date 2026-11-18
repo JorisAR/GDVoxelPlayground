@@ -1,5 +1,7 @@
 #include "voxel_camera.h"
 #include "utility/utils.h"
+#include "voxel_world/shader_paths.h"
+#include <godot_cpp/classes/viewport.hpp>
 
 void VoxelCamera::_bind_methods()
 {
@@ -36,8 +38,8 @@ void VoxelCamera::_notification(int p_what)
 
         break;
     }
-    case NOTIFICATION_READY: {
-        init();
+    case NOTIFICATION_PREDELETE: {
+        release();
         break;
     }
     case NOTIFICATION_INTERNAL_PROCESS: {
@@ -69,125 +71,156 @@ void VoxelCamera::set_fov(float value)
 
 TextureRect *VoxelCamera::get_output_texture() const
 {
-    return output_texture_rect;
+    return Object::cast_to<TextureRect>(ObjectDB::get_instance(_output_texture_rect_id));
 }
 
 void VoxelCamera::set_output_texture(TextureRect *value)
 {
-    output_texture_rect = value;
+    _output_texture_rect_id = value ? ObjectID(value->get_instance_id()) : ObjectID();
 }
 
 VoxelWorld *VoxelCamera::get_voxel_world() const
 {
-    return voxel_world;
+    return Object::cast_to<VoxelWorld>(ObjectDB::get_instance(_voxel_world_id));
 }
 
 void VoxelCamera::set_voxel_world(VoxelWorld *value)
 {
-    voxel_world = value;
+    _voxel_world_id = value ? ObjectID(value->get_instance_id()) : ObjectID();
 }
 
-void VoxelCamera::init()
+VoxelCamera::~VoxelCamera()
 {
-    if (voxel_world == nullptr)
-    {
-        UtilityFunctions::printerr("No voxel world set.");
-        return;
-    }
+    release();
+}
+
+bool VoxelCamera::init(VoxelWorld *world)
+{
+    release();
 
     _rd = RenderingServer::get_singleton()->get_rendering_device();
-
-    //get resolution
-    Vector2i resolution = DisplayServer::get_singleton()->window_get_size();
-    auto near = 0.01f;
-    auto far = 1000.0f;    
-
-    projection_matrix = Projection::create_perspective(fov, static_cast<float>(resolution.width) / resolution.height, near, far, false);
-
-    // setup compute shader
-    cs = new ComputeShader("res://addons/voxel_playground/src/shaders/voxel_renderer.glsl", _rd, {"#define TESTe"});
-
-    //--------- Voxel BUFFERS ---------    
-    voxel_world->get_voxel_world_rids().add_voxel_buffers(cs);    
-
-    //--------- GENERAL BUFFERS ---------
-    { // input general buffer
-        render_parameters.width = resolution.x;
-        render_parameters.height = resolution.y;
-        render_parameters.fov = fov;
-
-        render_parameters_rid = cs->create_storage_buffer_uniform(render_parameters.to_packed_byte_array(), 2, 1);
+    if (_rd == nullptr)
+    {
+        UtilityFunctions::printerr("VoxelCamera: requires a RenderingDevice-based renderer (Forward+ or Mobile).");
+        return false;
+    }
+    if (get_output_texture() == nullptr)
+    {
+        UtilityFunctions::printerr("VoxelCamera: No output texture set.");
+        return false;
     }
 
-    { //camera buffer        
-        Vector3 camera_position = get_global_transform().get_origin();
-        Projection VP = projection_matrix * get_global_transform().affine_inverse();
-        Projection IVP = VP.inverse();
-
-        Utils::projection_to_float(camera_parameters.vp, VP);
-        Utils::projection_to_float(camera_parameters.ivp, IVP);
-        camera_parameters.cameraPosition = Vector4(camera_position.x, camera_position.y, camera_position.z, 1.0f);
-        camera_parameters.frame_index = 0;
-        camera_parameters.nearPlane = near;
-        camera_parameters.farPlane = far;
-
-        camera_parameters_rid = cs->create_storage_buffer_uniform(camera_parameters.to_packed_byte_array(), 3, 1);
+    _kernel = std::make_unique<ComputeKernel>(_rd, VoxelShaders::RENDERER);
+    if (!_kernel->is_valid())
+    {
+        _kernel.reset();
+        return false;
     }
 
-    Ref<RDTextureView> output_texture_view = memnew(RDTextureView);
-    { // output texture
-        auto output_format = cs->create_texture_format(render_parameters.width, render_parameters.height, RenderingDevice::DATA_FORMAT_R32G32B32A32_SFLOAT);
-        if (output_texture_rect == nullptr)
-        {
-            UtilityFunctions::printerr("No output texture set.");
-            return;
-        }
-        output_image = Image::create(render_parameters.width, render_parameters.height, false, Image::FORMAT_RGBAF);
-        output_texture_rid = cs->create_image_uniform(output_image, output_format, output_texture_view, 0, 1);
+    _render_parameters_buffer = GpuResource::storage_buffer_from(_rd, render_parameters);
+    _camera_parameters_buffer = GpuResource::storage_buffer_from(_rd, camera_parameters);
+    _kernel->bind_storage_buffer(1, 2, _render_parameters_buffer.rid());
+    _kernel->bind_storage_buffer(1, 3, _camera_parameters_buffer.rid());
 
-        output_texture.instantiate();
-        output_texture->set_texture_rd_rid(output_texture_rid);
-        output_texture_rect->set_texture(output_texture);
-    }
-
-    Ref<RDTextureView> depth_texture_view = memnew(RDTextureView);
-    { // depth texture
-        auto depth_format = cs->create_texture_format(render_parameters.width, render_parameters.height, RenderingDevice::DATA_FORMAT_R32_SFLOAT);
-        depth_image = Image::create(render_parameters.width, render_parameters.height, false, Image::FORMAT_RF);        
-        depth_texture_rid = cs->create_image_uniform(depth_image, depth_format, depth_texture_view, 1, 1);
-    }
-
-    cs->finish_create_uniforms();
+    output_texture.instantiate();
+    get_output_texture()->set_texture(output_texture);
+    camera_parameters.frame_index = 0;
+    return true;
 }
 
-void VoxelCamera::clear_compute_shader()
+void VoxelCamera::release()
 {
+    if (output_texture.is_valid())
+        output_texture->set_texture_rd_rid(RID());
+    _kernel.reset();
+    _output_texture.reset();
+    _depth_texture.reset();
+    _render_parameters_buffer.reset();
+    _camera_parameters_buffer.reset();
+    _resolution = Vector2i();
+}
+
+bool VoxelCamera::resize_targets(const Vector2i &resolution)
+{
+    Ref<RDTextureView> view;
+    view.instantiate();
+
+    Ref<RDTextureFormat> format;
+    format.instantiate();
+    format->set_width(resolution.x);
+    format->set_height(resolution.y);
+
+    // Must match the `rgba8` image declared in voxel_renderer.glsl.
+    format->set_format(RenderingDevice::DATA_FORMAT_R8G8B8A8_UNORM);
+    format->set_usage_bits(RenderingDevice::TEXTURE_USAGE_STORAGE_BIT | RenderingDevice::TEXTURE_USAGE_SAMPLING_BIT);
+    GpuResource color(_rd, _rd->texture_create(format, view));
+
+    // Must match the `r32f` image declared in voxel_renderer.glsl.
+    format->set_format(RenderingDevice::DATA_FORMAT_R32_SFLOAT);
+    GpuResource depth(_rd, _rd->texture_create(format, view));
+
+    if (!color.is_valid() || !depth.is_valid())
+    {
+        UtilityFunctions::printerr("VoxelCamera: failed to create render targets of size ", resolution);
+        return false;
+    }
+
+    // Point the displayed texture at the new target before the old one is freed.
+    output_texture->set_texture_rd_rid(color.rid());
+    _output_texture = std::move(color);
+    _depth_texture = std::move(depth);
+    _kernel->bind_image(1, 0, _output_texture.rid());
+    _kernel->bind_image(1, 1, _depth_texture.rid());
+
+    render_parameters.width = resolution.x;
+    render_parameters.height = resolution.y;
+    render_parameters.fov = fov;
+    _render_parameters_buffer.update(render_parameters);
+
+    _resolution = resolution;
+    return true;
 }
 
 void VoxelCamera::render()
 {
-    if (cs == nullptr || !cs->check_ready())
+    VoxelWorld *world = get_voxel_world();
+    if (world == nullptr || !world->is_initialized())
+        return; // the world may still be generating, or may have been freed
+
+    if (!_kernel)
+    {
+        if (_init_failed)
+            return;
+        if (!init(world))
+        {
+            _init_failed = true; // don't retry (and spam errors) every frame
+            return;
+        }
+    }
+
+    // Rebinding is a no-op unless the world recreated its buffers.
+    world->get_voxel_world_rids().add_voxel_buffers(*_kernel);
+
+    const Vector2i resolution = get_viewport()->get_visible_rect().size;
+    if (resolution.x <= 0 || resolution.y <= 0)
+        return; // minimised
+    if (resolution != _resolution && !resize_targets(resolution))
         return;
-    // update rendering parameters
-    Vector3 camera_position = get_global_transform().get_origin();
-    Projection VP = projection_matrix * get_global_transform().affine_inverse();
-    Projection IVP = VP.inverse();
+
+    const Projection projection = Projection::create_perspective(
+        fov, static_cast<real_t>(resolution.x) / resolution.y, near_plane, far_plane, false);
+    const Transform3D transform = get_global_transform();
+    const Projection VP = projection * Projection(transform.affine_inverse());
+    const Vector3 camera_position = transform.get_origin();
 
     Utils::projection_to_float(camera_parameters.vp, VP);
-    Utils::projection_to_float(camera_parameters.ivp, IVP);
+    Utils::projection_to_float(camera_parameters.ivp, VP.inverse());
     camera_parameters.cameraPosition = Vector4(camera_position.x, camera_position.y, camera_position.z, 1.0f);
     camera_parameters.frame_index++;
-    cs->update_storage_buffer_uniform(camera_parameters_rid, camera_parameters.to_packed_byte_array());
+    camera_parameters.nearPlane = near_plane;
+    camera_parameters.farPlane = far_plane;
+    _camera_parameters_buffer.update(camera_parameters);
 
-    // render
-    Vector2i Size = {render_parameters.width, render_parameters.height};
-    cs->compute({static_cast<int32_t>(std::ceil(Size.x / 32.0f)), static_cast<int32_t>(std::ceil(Size.y / 32.0f)), 1}, false);
-    
-    { // post processing
-
-    }
-    
-    // output_image->set_data(Size.x, Size.y, false, Image::FORMAT_RGBA8,
-    //                        cs->get_image_uniform_buffer(output_texture_rid));
-    // output_texture->update(output_image);
+    // Must match local_size in voxel_renderer.glsl.
+    _kernel->dispatch(ComputeKernel::group_count(Vector3i(resolution.x, resolution.y, 1), Vector3i(8, 8, 1)));
 }

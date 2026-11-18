@@ -1,8 +1,8 @@
 #[compute]
 #version 460
 
-#include "utility.glsl"
-#include "voxel_world.glsl"
+#include "utility.glslinc"
+#include "voxel_world.glslinc"
 
 // ----------------------------------- STRUCTS -----------------------------------
 
@@ -53,7 +53,7 @@ vec3 blinnPhongShading(vec3 baseColor, vec3 normal, vec3 lightDir, vec3 lightCol
     return result;
 }
 
-layout(local_size_x = 32, local_size_y = 32, local_size_z = 1) in;
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 void main() {
     ivec2 pos = ivec2(gl_GlobalInvocationID.xy);
     if (pos.x >= params.width || pos.y >= params.height) return;
@@ -63,7 +63,7 @@ void main() {
     vec4 ndc = vec4(screen_uv * 2.0 - 1.0, 0.0, 1.0);
     ndc.y = -ndc.y;
 
-    vec4 world_pos = inverse(camera.view_projection) * ndc;
+    vec4 world_pos = camera.inv_view_projection * ndc;
     world_pos /= world_pos.w;
     vec3 ray_origin = camera.position.xyz;
     vec3 ray_dir = normalize(world_pos.xyz - ray_origin);

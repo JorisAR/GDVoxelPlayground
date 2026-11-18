@@ -1,6 +1,3 @@
 [submodule "godot-cpp"]
 	path = godot-cpp
-	url = git@github.com:godotengine/godot-cpp.git
-[submodule "src/gdcs"]
-	path = src/gdcs
-	url = git@github.com:JorisAR/gdcs.git
+	url = https://github.com/godotengine/godot-cpp.git

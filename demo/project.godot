@@ -17,7 +17,7 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 config/name="VoxelPlayground"
 config/tags=PackedStringArray("experimental", "tool")
 run/main_scene="res://demo/demo.tscn"
-config/features=PackedStringArray("4.6", "Forward Plus")
+config/features=PackedStringArray("4.7", "Forward Plus")
 config/icon="uid://ckssxqg585uj4"
 
 [display]
